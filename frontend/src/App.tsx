@@ -1096,26 +1096,24 @@ export default function App() {
               </span>
             )}
             <button onClick={addChar} className="rounded-md border border-amber-700/70 bg-stone-800 px-3 py-2 text-amber-200 hover:bg-stone-700">Yeni Karakter</button>
-            {user && (
-              <div className="rounded-md border border-amber-700/70 bg-stone-800 px-2 py-1 text-sm text-amber-200">
-                Giriş: <span className="font-semibold">{user.username}</span> ({user.role === 'gm' ? 'GM' : 'Oyuncu'})
-                <button onClick={logout} className="ml-2 rounded border border-amber-700/70 px-2 py-0.5 hover:bg-stone-700">Çıkış</button>
-              </div>
-            )}
 
-            {/* Canlı eşitleme kontrolleri (sadece GM'e göster) */}
+            {/* Masa ID — herkes görebilir/değiştirebilir */}
+            <div className="flex items-center gap-2 rounded-md border border-amber-700/70 bg-stone-800 px-2 py-1">
+              <label className="text-sm">Masa ID</label>
+              <input 
+                value={tableId} 
+                onChange={(e) => { 
+                  setTableId(e.target.value); 
+                  localStorage.setItem("ejk_table", e.target.value); 
+                }} 
+                className="w-28 rounded border border-amber-700/60 bg-stone-900 px-2 py-1 text-sm" 
+                placeholder="masa-adi"
+              />
+            </div>
+
+            {/* Sunucu ve bağlantı durumu — sadece GM */}
             {user?.role === 'gm' && (
               <div className="flex items-center gap-2 rounded-md border border-amber-700/70 bg-stone-800 px-2 py-1">
-                <label className="text-sm">Masa ID</label>
-                <input 
-                  value={tableId} 
-                  onChange={(e) => { 
-                    setTableId(e.target.value); 
-                    localStorage.setItem("ejk_table", e.target.value); 
-                  }} 
-                  className="w-28 rounded border border-amber-700/60 bg-stone-900 px-2 py-1 text-sm" 
-                  placeholder="masa-adi"
-                />
                 <label className="text-sm">Sunucu</label>
                 <input 
                   value={socketBase} 
