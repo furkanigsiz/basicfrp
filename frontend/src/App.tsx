@@ -852,7 +852,16 @@ export default function App() {
   // === Canlı eşitleme (Socket.IO) ayarları ===
   const [live, setLive] = useState(true); // Netlify için varsayılan AÇIK
   const [tableId, setTableId] = useState<string>(() => localStorage.getItem("ejk_table") || "bolum-3");
-  const [socketBase, setSocketBase] = useState<string>(() => localStorage.getItem("ejk_socket_url") || "https://ejder-kayasi-socket.herokuapp.com");
+  const [socketBase, setSocketBase] = useState<string>(() => {
+    const saved = localStorage.getItem("ejk_socket_url");
+    if (saved) return saved;
+    try {
+      if (typeof window !== 'undefined' && window.location && window.location.origin) {
+        return window.location.origin;
+      }
+    } catch {}
+    return "https://ejder-kayasi-socket.herokuapp.com";
+  });
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const socketRef = useRef<Socket | null>(null);
 
