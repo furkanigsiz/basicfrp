@@ -182,9 +182,9 @@ io.on('connection', (socket) => {
   });
 
   // Zar atışı yayını
-  socket.on('dice:roll', ({ tableId, payload }) => {
+  socket.on('dice:roll', ({ tableId, payload, originClientId }) => {
     if (!tableId || !payload) return;
-    socket.to(tableId).emit('dice:roll', { payload });
+    socket.to(tableId).emit('dice:roll', { payload, originClientId });
   });
   
   // Bağlantı kesildiğinde

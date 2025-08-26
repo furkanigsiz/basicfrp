@@ -454,7 +454,7 @@ function MusicPanel({ live, tableId, socketRef, userRole }:{ live:boolean; table
 // ======================
 //  Zar Paneli (D6)
 // ======================
-function ZarPanel({ user, chars }:{ user: { username:string; role:'gm'|'player' } | null; chars: CharData[] }) {
+function ZarPanel({ user, chars, socketRef, tableId, clientId }:{ user: { username:string; role:'gm'|'player' } | null; chars: CharData[]; socketRef: React.MutableRefObject<Socket|null>; tableId: string; clientId: string }) {
   const [isim, setIsim] = useState("");
   const [sonuc, setSonuc] = useState<number>(4);
   const [rolling, setRolling] = useState(false);
@@ -486,10 +486,8 @@ function ZarPanel({ user, chars }:{ user: { username:string; role:'gm'|'player' 
       const entry = { name: effectiveName, dice, result: final, ts: Date.now() };
       setLogs((l) => [entry, ...l].slice(0, 8));
       // Sokete yayınla
-      if ((window as any).__socketRef && (window as any).__tableId) {
-        try {
-          (window as any).__socketRef.emit('dice:roll', { tableId: (window as any).__tableId, payload: entry });
-        } catch {}
+      if (socketRef.current) {
+        try { socketRef.current.emit('dice:roll', { tableId, payload: entry, originClientId: clientId }); } catch {}
       }
       // Yerel toast için event
       try { window.dispatchEvent(new CustomEvent('dice:roll-local', { detail: entry })); } catch {}
@@ -504,14 +502,14 @@ function ZarPanel({ user, chars }:{ user: { username:string; role:'gm'|'player' 
 
   // Soketten gelen zar atışlarını dinle
   useEffect(() => {
-    const s: Socket | null = (window as any).__socketRef || null;
+    const s: Socket | null = socketRef.current;
     if (!s) return;
     const handler = ({ payload }: { payload: { name:string; dice:number; result:number; ts:number } }) => {
       setLogs((l) => [payload, ...l].slice(0, 8));
     };
     s.on('dice:roll', handler);
     return () => { s.off('dice:roll', handler); };
-  }, []);
+  }, [socketRef]);
 
   return (
     <Frame className="p-4">
@@ -1055,7 +1053,7 @@ export default function App() {
       s.off('char:delete', onCharDelete);
       s.off('char:add', onCharAdd);
     };
-  }, [socketRef.current, clientId]);
+  }, [socketRef, clientId]);
 
   return (
     <div className="min-h-screen bg-[#1b140e] p-6 text-amber-200">
@@ -1150,7 +1148,7 @@ export default function App() {
           </div>
           <div className="col-span-2 flex flex-col gap-4">
             {user?.role === 'gm' && <MusicPanel live={live} tableId={tableId} socketRef={socketRef} userRole={user.role} />}
-            <ZarPanel user={user} chars={chars} />
+            <ZarPanel user={user} chars={chars} socketRef={socketRef} tableId={tableId} clientId={clientId} />
             <GmZarPanel />
           </div>
           <div className="col-span-3">
