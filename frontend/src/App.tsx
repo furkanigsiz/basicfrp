@@ -822,31 +822,40 @@ export default function App() {
       setLoginErr('Kullanıcı adı veya şifre hatalı');
       return;
     }
-    // Sunucu tarafı kullanıcı kilidi
-    if (socketRef.current) {
+
+    // 1) Optimistik giriş (socket bağlantısına bağımlı değil)
+    const next: User = { username: found.u, role: found.role };
+    setUser(next);
+    localStorage.setItem('ejk_user', JSON.stringify(next));
+    setLoginErr('');
+
+    // 2) Socket bağlanınca kullanıcı kilidini talep et; red gelirse geri al
+    const s = socketRef.current;
+    const sendAuth = () => {
+      if (!socketRef.current) return;
       socketRef.current.emit('auth:login', { username: found.u });
-      const onRes = ({ ok, reason }: { ok:boolean; reason?:string }) => {
+      socketRef.current.once('auth:result', ({ ok, reason }: { ok:boolean; reason?:string }) => {
         if (!ok) {
-          setLoginErr(reason || 'Giriş reddedildi');
-          return;
+          setLoginErr(reason || 'Bu kullanıcı adı kullanımda');
+          setUser(null);
+          localStorage.removeItem('ejk_user');
         }
-        const next: User = { username: found.u, role: found.role };
-        setUser(next);
-        localStorage.setItem('ejk_user', JSON.stringify(next));
-        setLoginErr('');
+      });
+    };
+    if (s?.connected) {
+      sendAuth();
+    } else if (s) {
+      const onConnect = () => {
+        sendAuth();
+        s.off('connect', onConnect);
       };
-      socketRef.current.once('auth:result', onRes);
-    } else {
-      const next: User = { username: found.u, role: found.role };
-      setUser(next);
-      localStorage.setItem('ejk_user', JSON.stringify(next));
-      setLoginErr('');
+      s.on('connect', onConnect);
     }
   };
   const logout = () => {
     setUser(null);
     localStorage.removeItem('ejk_user');
-    if (socketRef.current) socketRef.current.emit('auth:logout');
+    if (socketRef.current && socketRef.current.connected) socketRef.current.emit('auth:logout');
   };
 
   // === Canlı eşitleme (Socket.IO) ayarları ===
