@@ -28,7 +28,7 @@ const userTables = new Map();
 const activeUsers = new Map(); // username -> socket.id
 
 // Ana sayfa
-app.get('/', (req, res) => {
+app.get('/api', (req, res) => {
   res.json({
     message: 'Ejder Kayası Socket.IO Sunucusu',
     version: '1.0.0',
