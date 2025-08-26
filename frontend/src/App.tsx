@@ -808,9 +808,14 @@ export default function App() {
   const [loginP, setLoginP] = useState('');
   const [loginErr, setLoginErr] = useState('');
   const tryLogin = () => {
+    const players = Array.from({ length: 10 }).map((_, i) => {
+      const n = i + 1;
+      const u = `kullanıcı${n}`;
+      return { u, p: u, role: 'player' as UserRole };
+    });
     const known = [
       { u: 'gm', p: 'gm123', role: 'gm' as UserRole },
-      { u: 'kullanıcı1', p: 'kullanıcı1', role: 'player' as UserRole },
+      ...players,
     ];
     const found = known.find((k) => k.u === loginU.trim() && k.p === loginP);
     if (!found) {
@@ -995,9 +1000,9 @@ export default function App() {
               <div className="mb-3 text-center font-serif text-2xl text-amber-300">Giriş Yap</div>
               <div className="space-y-2">
                 <label className="block text-sm text-amber-200/90">Kullanıcı adı</label>
-                <input value={loginU} onChange={(e)=>setLoginU(e.target.value)} className="w-full rounded border border-amber-700/60 bg-stone-800 px-3 py-2 text-amber-200" placeholder="gm / kullanıcı1" />
+                <input value={loginU} onChange={(e)=>setLoginU(e.target.value)} className="w-full rounded border border-amber-700/60 bg-stone-800 px-3 py-2 text-amber-200" placeholder="gm / kullanıcı1 .. kullanıcı10" />
                 <label className="block text-sm text-amber-200/90">Şifre</label>
-                <input type="password" value={loginP} onChange={(e)=>setLoginP(e.target.value)} className="w-full rounded border border-amber-700/60 bg-stone-800 px-3 py-2 text-amber-200" placeholder="gm123 / kullanıcı1" />
+                <input type="password" value={loginP} onChange={(e)=>setLoginP(e.target.value)} className="w-full rounded border border-amber-700/60 bg-stone-800 px-3 py-2 text-amber-200" placeholder="gm123 / kullanıcı1 .. kullanıcı10" />
                 {loginErr && <div className="text-sm text-red-300">{loginErr}</div>}
                 <button onClick={tryLogin} className="mt-2 w-full rounded-md border border-amber-700/70 bg-stone-800 px-3 py-2 text-amber-200 hover:bg-stone-700">Giriş</button>
               </div>
