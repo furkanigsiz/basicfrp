@@ -233,7 +233,7 @@ interface CharStats { gucl:number; ceviklik:number; zeka:number; irade:number; i
 interface CharCan { current:number; max:number; shield?: number; }
 interface CharData { ad:string; sinif:string; seviye:number; img?:string|null; can:CharCan; stats:CharStats; pasif:string; inspiration?: number; extraStats?: Record<string, number>; owner?: string|null; }
 
-function CharacterCard({ data, onChange, onDelete, editable, user }:{ data:CharData; onChange:(d:CharData)=>void; onDelete:()=>void; editable:boolean; user: { username:string; role:'gm'|'player' } | null; }) {
+function CharacterCard({ data, onChange, onDelete, editable, user, userOwnsAnother }:{ data:CharData; onChange:(d:CharData)=>void; onDelete:()=>void; editable:boolean; user: { username:string; role:'gm'|'player' } | null; userOwnsAnother:boolean; }) {
   const update = (patch: Partial<CharData>) => onChange({ ...data, ...patch });
   const setStat = (key: keyof CharStats, val:number) => update({ stats: { ...data.stats, [key]: Math.max(0, Math.min(10, val)) } });
   const isGM: boolean = user?.role === 'gm';
@@ -310,17 +310,12 @@ function CharacterCard({ data, onChange, onDelete, editable, user }:{ data:CharD
               <button className="rounded border border-amber-700/70 px-2 py-0.5 hover:bg-stone-800" onClick={() => update({ owner: null })}>Sahipliği bırak</button>
             ) : null
           ) : (
+            // Bir kullanıcı bir karta sahipken başka kartı sahiplenemesin (önce bırakmalı)
             <button
-              className="rounded border border-amber-700/70 px-2 py-0.5 hover:bg-stone-800"
-              onClick={() => {
-                // Aynı anda sadece 1 kart sahibi olabilir
-                const already = !!document.body.getAttribute('data-has-owner');
-                // Fallback: üst bileşenden veri gelmiyor; body attribute ile basit guard
-                update({ owner: user.username });
-              }}
-            >
-              Bu kartı sahiplen
-            </button>
+              className="rounded border border-amber-700/70 px-2 py-0.5 hover:bg-stone-800 disabled:opacity-60"
+              disabled={userOwnsAnother}
+              onClick={() => update({ owner: user.username })}
+            >Bu kartı sahiplen</button>
           )
         )}
       </div>
@@ -509,7 +504,7 @@ function ZarPanel({ user, chars, socketRef, tableId, clientId }:{ user: { userna
     };
     s.on('dice:roll', handler);
     return () => { s.off('dice:roll', handler); };
-  }, [socketRef]);
+  }, [socketRef, tableId]);
 
   return (
     <Frame className="p-4">
@@ -577,7 +572,7 @@ function ZarPanel({ user, chars, socketRef, tableId, clientId }:{ user: { userna
 }
 
 // GM Zar Paneli (çoklu zar türü + animasyon)
-function GmZarPanel() {
+function GmZarPanel({ socketRef, tableId, clientId }:{ socketRef: React.MutableRefObject<Socket|null>; tableId:string; clientId:string }) {
   const [dice, setDice] = useState<number>(20);
   const [result, setResult] = useState<number | null>(null);
   const [rolling, setRolling] = useState(false);
@@ -597,9 +592,8 @@ function GmZarPanel() {
       setRolling(false);
       // GM ismi sabit: 'GM'
       const entry = { name: 'GM', dice, result: final, ts: Date.now() };
-      const s: Socket | null = (window as any).__socketRef || null;
-      const tid = (window as any).__tableId;
-      if (s && tid) s.emit('dice:roll', { tableId: tid, payload: entry });
+      const s: Socket | null = socketRef.current;
+      if (s) s.emit('dice:roll', { tableId, payload: entry, originClientId: clientId });
       try { window.dispatchEvent(new CustomEvent('dice:roll-local', { detail: entry })); } catch {}
     }, 900);
   };
@@ -947,6 +941,7 @@ export default function App() {
       if (payload.title !== undefined) setTitle(payload.title);
       if (payload.editMode !== undefined) setEditMode(payload.editMode);
       if (payload.chars !== undefined) setChars(payload.chars);
+      if (payload.tableId !== undefined && typeof payload.tableId === 'string') setTableId(payload.tableId);
     });
 
     socket.on("user:joined", ({ userId, tableId: joinedTableId }) => {
@@ -972,6 +967,8 @@ export default function App() {
   useEffect(() => { if (socketRef.current && live) socketRef.current.emit("state:patch", { tableId, payload: { title }, originClientId: clientId }); }, [title, live, tableId]);
   useEffect(() => { if (socketRef.current && live) socketRef.current.emit("state:patch", { tableId, payload: { editMode }, originClientId: clientId }); }, [editMode, live, tableId]);
   // ÖNEMLİ: chars'ı komple yayınlamayı kaldırdık; granular olaylar kullanılıyor
+  // Masa ID değişimini yayınla (diğer istemciler yeni masaya otomatik geçsin)
+  useEffect(() => { if (socketRef.current && live) socketRef.current.emit("state:patch", { tableId, payload: { tableId }, originClientId: clientId }); }, [tableId, live]);
 
   const setChar = (idx:number, patch:CharData) => setChars((prev) => {
     const current = prev[idx];
@@ -1089,9 +1086,15 @@ export default function App() {
           )}
 
           <div className="flex flex-wrap items-center justify-center gap-2">
-            <button onClick={() => setEditMode((s:boolean) => !s)} className="rounded-md border border-amber-700/70 bg-stone-800 px-3 py-2 text-amber-200 hover:bg-stone-700">
-              {editMode ? "Oynatma Moduna Geç" : "Düzenle"}
-            </button>
+            {user?.role === 'gm' ? (
+              <button onClick={() => setEditMode((s:boolean) => !s)} className="rounded-md border border-amber-700/70 bg-stone-800 px-3 py-2 text-amber-200 hover:bg-stone-700">
+                {editMode ? "Oynatma Moduna Geç" : "Düzenle"}
+              </button>
+            ) : (
+              <span className="rounded-md border border-amber-700/70 bg-stone-800 px-3 py-2 text-amber-200 text-sm">
+                Mod: {editMode ? 'Düzenleme' : 'Oynatma'} (GM kontrolünde)
+              </span>
+            )}
             <button onClick={addChar} className="rounded-md border border-amber-700/70 bg-stone-800 px-3 py-2 text-amber-200 hover:bg-stone-700">Yeni Karakter</button>
             {user && (
               <div className="rounded-md border border-amber-700/70 bg-stone-800 px-2 py-1 text-sm text-amber-200">
@@ -1141,15 +1144,28 @@ export default function App() {
         <div className="grid grid-cols-12 gap-4">
           <div className="col-span-7">
             <div className="grid grid-cols-3 gap-4">
-              {chars.map((c, i) => (
-                <CharacterCard key={i} data={c} editable={editMode} user={user} onChange={(patch) => setChar(i, patch)} onDelete={() => delChar(i)} />
-              ))}
+              {chars.map((c, i) => {
+                const userOwnsAnother = Boolean(
+                  user?.username && chars.some((cc, j) => j !== i && (cc.owner || '').toLowerCase() === user.username.toLowerCase())
+                );
+                return (
+                  <CharacterCard
+                    key={i}
+                    data={c}
+                    editable={editMode}
+                    user={user}
+                    userOwnsAnother={userOwnsAnother}
+                    onChange={(patch) => setChar(i, patch)}
+                    onDelete={() => delChar(i)}
+                  />
+                );
+              })}
             </div>
           </div>
           <div className="col-span-2 flex flex-col gap-4">
             {user?.role === 'gm' && <MusicPanel live={live} tableId={tableId} socketRef={socketRef} userRole={user.role} />}
             <ZarPanel user={user} chars={chars} socketRef={socketRef} tableId={tableId} clientId={clientId} />
-            <GmZarPanel />
+            <GmZarPanel socketRef={socketRef} tableId={tableId} clientId={clientId} />
           </div>
           <div className="col-span-3">
             <GaleriPanel />
