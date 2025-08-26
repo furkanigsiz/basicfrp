@@ -123,7 +123,7 @@ io.on('connection', (socket) => {
   });
   
   // Durum güncellemesi
-  socket.on('state:update', ({ tableId, payload }) => {
+  socket.on('state:update', ({ tableId, payload, originClientId }) => {
     if (!tableId || !payload) return;
     
     const currentState = tableStates.get(tableId) || {};
@@ -131,13 +131,13 @@ io.on('connection', (socket) => {
     tableStates.set(tableId, newState);
     
     // Masadaki diğer kullanıcılara gönder
-    socket.to(tableId).emit('state:patch', { payload });
+    socket.to(tableId).emit('state:patch', { payload, originClientId });
     
     console.log(`Masa ${tableId} güncellendi`);
   });
   
   // Durum patch'i
-  socket.on('state:patch', ({ tableId, payload }) => {
+  socket.on('state:patch', ({ tableId, payload, originClientId }) => {
     if (!tableId || !payload) return;
     
     const currentState = tableStates.get(tableId) || {};
@@ -145,7 +145,7 @@ io.on('connection', (socket) => {
     tableStates.set(tableId, newState);
     
     // Masadaki diğer kullanıcılara gönder
-    socket.to(tableId).emit('state:patch', { payload });
+    socket.to(tableId).emit('state:patch', { payload, originClientId });
   });
 
   // Müzik kontrolü: GM play/pause yayını

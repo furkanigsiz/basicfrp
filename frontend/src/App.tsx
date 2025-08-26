@@ -796,6 +796,14 @@ export default function App() {
   // === Basit kullanıcı girişi / rol yönetimi ===
   type UserRole = 'gm' | 'player';
   type User = { username: string; role: UserRole } | null;
+  const [clientId] = useState<string>(() => {
+    const k = 'ejk_client_id';
+    const ex = localStorage.getItem(k);
+    if (ex) return ex;
+    const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem(k, id);
+    return id;
+  });
   const [user, setUser] = useState<User>(() => {
     try {
       const raw = localStorage.getItem('ejk_user');
@@ -922,7 +930,7 @@ export default function App() {
       console.log("Socket.IO bağlantısı kuruldu:", socket.id);
       setConnectionStatus('connected');
       socket.emit("join", { tableId });
-      socket.emit("state:update", { tableId, payload: { title, editMode, chars } });
+      socket.emit("state:update", { tableId, payload: { title, editMode, chars }, originClientId: clientId });
     });
 
     socket.on("disconnect", (reason) => {
@@ -936,7 +944,8 @@ export default function App() {
       alert(`Sunucuya bağlanılamadı: ${error.message}\nLütfen sunucu URL'ini kontrol edin.`);
     });
 
-    socket.on("state:patch", ({ payload }: { payload:any }) => {
+    socket.on("state:patch", ({ payload, originClientId }: { payload:any; originClientId?:string }) => {
+      if (originClientId && originClientId === clientId) return;
       if (payload.title !== undefined) setTitle(payload.title);
       if (payload.editMode !== undefined) setEditMode(payload.editMode);
       if (payload.chars !== undefined) setChars(payload.chars);
@@ -962,9 +971,9 @@ export default function App() {
   }, [live, socketBase, tableId]);
 
   // Yerel değişiklikleri sokete yayınla (patch mantığı)
-  useEffect(() => { if (socketRef.current && live) socketRef.current.emit("state:patch", { tableId, payload: { title } }); }, [title, live, tableId]);
-  useEffect(() => { if (socketRef.current && live) socketRef.current.emit("state:patch", { tableId, payload: { editMode } }); }, [editMode, live, tableId]);
-  useEffect(() => { if (socketRef.current && live) socketRef.current.emit("state:patch", { tableId, payload: { chars } }); }, [chars, live, tableId]);
+  useEffect(() => { if (socketRef.current && live) socketRef.current.emit("state:patch", { tableId, payload: { title }, originClientId: clientId }); }, [title, live, tableId]);
+  useEffect(() => { if (socketRef.current && live) socketRef.current.emit("state:patch", { tableId, payload: { editMode }, originClientId: clientId }); }, [editMode, live, tableId]);
+  useEffect(() => { if (socketRef.current && live) socketRef.current.emit("state:patch", { tableId, payload: { chars }, originClientId: clientId }); }, [chars, live, tableId]);
 
   const setChar = (idx:number, patch:CharData) => setChars((prev) => {
     const current = prev[idx];
