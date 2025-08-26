@@ -148,6 +148,32 @@ io.on('connection', (socket) => {
     socket.to(tableId).emit('state:patch', { payload, originClientId });
   });
 
+  // Karakter güncellemeleri (granular)
+  socket.on('char:update', ({ tableId, payload, originClientId }) => {
+    if (!tableId || !payload) return;
+    const st = tableStates.get(tableId) || { chars: [] };
+    const chars = Array.isArray(st.chars) ? [...st.chars] : [];
+    chars[payload.index] = payload.value;
+    tableStates.set(tableId, { ...st, chars, lastUpdate: Date.now() });
+    socket.to(tableId).emit('char:update', { payload, originClientId });
+  });
+
+  socket.on('char:delete', ({ tableId, payload, originClientId }) => {
+    if (!tableId || !payload) return;
+    const st = tableStates.get(tableId) || { chars: [] };
+    const chars = Array.isArray(st.chars) ? st.chars.filter((_, i) => i !== payload.index) : [];
+    tableStates.set(tableId, { ...st, chars, lastUpdate: Date.now() });
+    socket.to(tableId).emit('char:delete', { payload, originClientId });
+  });
+
+  socket.on('char:add', ({ tableId, payload, originClientId }) => {
+    if (!tableId || !payload) return;
+    const st = tableStates.get(tableId) || { chars: [] };
+    const chars = Array.isArray(st.chars) ? [...st.chars, payload.value] : [payload.value];
+    tableStates.set(tableId, { ...st, chars, lastUpdate: Date.now() });
+    socket.to(tableId).emit('char:add', { payload, originClientId });
+  });
+  
   // Müzik kontrolü: GM play/pause yayını
   socket.on('music:control', ({ tableId, payload }) => {
     if (!tableId || !payload) return;

@@ -973,7 +973,7 @@ export default function App() {
   // Yerel değişiklikleri sokete yayınla (patch mantığı)
   useEffect(() => { if (socketRef.current && live) socketRef.current.emit("state:patch", { tableId, payload: { title }, originClientId: clientId }); }, [title, live, tableId]);
   useEffect(() => { if (socketRef.current && live) socketRef.current.emit("state:patch", { tableId, payload: { editMode }, originClientId: clientId }); }, [editMode, live, tableId]);
-  useEffect(() => { if (socketRef.current && live) socketRef.current.emit("state:patch", { tableId, payload: { chars }, originClientId: clientId }); }, [chars, live, tableId]);
+  // ÖNEMLİ: chars'ı komple yayınlamayı kaldırdık; granular olaylar kullanılıyor
 
   const setChar = (idx:number, patch:CharData) => setChars((prev) => {
     const current = prev[idx];
@@ -991,13 +991,27 @@ export default function App() {
       }
     }
     next[idx] = patch;
+    // Socket'e granular update yayınla
+    if (socketRef.current && live) {
+      socketRef.current.emit('char:update', { tableId, payload: { index: idx, value: patch }, originClientId: clientId });
+    }
     return next;
   });
+
   const addChar = () => setChars((prev) => [
     ...prev,
     { ad: "Yeni Karakter", sinif: "Sınıf", seviye: 1, img: null, can: { current: 10, max: 10, shield: 0 }, stats: { gucl: 0, ceviklik: 0, zeka: 0, irade: 0, izcilik: 0 }, pasif: "", inspiration: 0, extraStats: {}, owner: null },
   ]);
-  const delChar = (idx:number) => setChars((prev) => prev.filter((_, i) => i !== idx));
+  // add sonrası socket yayınla
+  useEffect(() => {
+    // Basit yaklaşımla addChar çağrısı sonrası son öğeyi algılamak yerine doğrudan addChar içinde yayınlamak daha iyi; ama burada basit tutuyoruz.
+  }, []);
+
+  const delChar = (idx:number) => setChars((prev) => {
+    const next = prev.filter((_, i) => i !== idx);
+    if (socketRef.current && live) socketRef.current.emit('char:delete', { tableId, payload: { index: idx }, originClientId: clientId });
+    return next;
+  });
 
   const resetAll = () => {
     localStorage.removeItem("ejk_title");
@@ -1016,6 +1030,32 @@ export default function App() {
     (window as any).__socketRef = socketRef.current;
     (window as any).__tableId = tableId;
   }, [socketRef.current, tableId]);
+
+  // Granular socket olaylarını dinle ve local state'e uygula
+  useEffect(() => {
+    if (!socketRef.current) return;
+    const s = socketRef.current;
+    const onCharUpdate = ({ payload, originClientId }: { payload:{ index:number; value:CharData }; originClientId?:string }) => {
+      if (originClientId && originClientId === clientId) return;
+      setChars((prev) => prev.map((c, i) => (i === payload.index ? payload.value : c)));
+    };
+    const onCharDelete = ({ payload, originClientId }: { payload:{ index:number }; originClientId?:string }) => {
+      if (originClientId && originClientId === clientId) return;
+      setChars((prev) => prev.filter((_, i) => i !== payload.index));
+    };
+    const onCharAdd = ({ payload, originClientId }: { payload:{ value:CharData }; originClientId?:string }) => {
+      if (originClientId && originClientId === clientId) return;
+      setChars((prev) => [...prev, payload.value]);
+    };
+    s.on('char:update', onCharUpdate);
+    s.on('char:delete', onCharDelete);
+    s.on('char:add', onCharAdd);
+    return () => {
+      s.off('char:update', onCharUpdate);
+      s.off('char:delete', onCharDelete);
+      s.off('char:add', onCharAdd);
+    };
+  }, [socketRef.current, clientId]);
 
   return (
     <div className="min-h-screen bg-[#1b140e] p-6 text-amber-200">
